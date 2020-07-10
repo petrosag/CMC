@@ -1,0 +1,264 @@
+---
+title: "Multivariate Analysis On Contraceptive Choice Of Married Women In Indonesia 1987."
+author: "AFolake Baiyewu, Gbemisola Adewuya, Saran Caba"
+date: "05/05/2020"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+#  **DataSet Information:**  
+- **Wife's age (numerical)**  
+- **Wife's education (categorical) 1=low, 2, 3, 4=high**  
+- **Husband's education (categorical) 1=low, 2, 3, 4=high**  
+- **Number of children ever born (numerical)**  
+- **Wife's religion (binary) 0=Non-Islam, 1=Islam**  
+- **Wife's now working? (binary) 0=Yes, 1=No**  
+- **Husband's occupation (categorical) 1, 2, 3, 4**  
+- **Standard-of-living index (categorical) 1=low, 2, 3, 4=high**  
+- **Media exposure (binary) 0=Good, 1=Not good **  
+- **Contraceptive method used (class attribute) 1=No-use, 2=Long-term, 3=Short-term**  
+
+#  **INTRODUCTION, PROBLEM, AND PURPOSE:**
+**The dataset is a subset of the 1987 National Indonesia Contraceptive Prevalence Survey. It was created by Tjen-Sien Lim (limt@stat.wisc.edu). The dataset illustrates samples of married women who were either not pregnant or do not know if they were at the time of the interview. The aim of this project is to create a multivariate analysis that predicts the current contraceptive method choice (no use, long-term methods, or short-term methods) of a woman based on her demographic and socio-economic characteristics**  
+
+\begin{center}DATA PREPARATION:\end{center} 
+#### data structure:, echo=FALSE
+```{r}
+
+cmcdata <- read.csv(file.choose())
+str(cmcdata)
+
+```  
+#### check for missing or bad data:  
+```{r}
+anyNA(cmcdata)
+
+```  
+#### A quick summary of the data:  
+```{r}
+summary(cmcdata) # the w_age and n_children variables appears to have larger vales
+
+```  
+#### change the class of some variables with 2-4 unique values to categorical:  
+```{r,echo=FALSE}
+cmcdata$w_education <- as.factor(cmcdata$w_education)
+cmcdata$h_education <- as.factor(cmcdata$h_education)
+cmcdata$w_religion <- as.factor(cmcdata$w_religion)
+cmcdata$w_working <- as.factor(cmcdata$w_working)
+cmcdata$h_occuopation <- as.factor(cmcdata$h_occuopation)
+cmcdata$S_l_Index <- as.factor(cmcdata$S_l_Index)
+cmcdata$media <- as.factor(cmcdata$media)
+cmcdata$cm_used <- as.factor(cmcdata$cm_used)
+str(cmcdata)
+```  
+\begin{center}VISUALIZATION:\end{center}  
+#### check distribution of numeric varaibles:  
+```{r, echo=FALSE, fig.height=3}
+
+hist(cmcdata$w_age, freq = F, breaks = 12, col = "lightblue")
+lines(seq(10, 50, by = 0.5), dnorm(seq(10,50, by = 0.5),
+                                   mean(cmcdata$w_age), sd(cmcdata$w_age)), col = "blue")
+```
+- the wife's age variable is obviouly not normally distributed (not bell like shape)  
+
+```{r, echo=FALSE, fig.height=3}
+hist(cmcdata$n_children, freq = F, breaks = 12, col = "lightblue") 
+```
+- The number of children variable is skewed to the right (we may need to tranform the variable  before modeling)  
+
+#### check for outliers:  
+```{r, echo=FALSE, fig.height=4}
+par(mfrow = c(1,2)) 
+
+for (i in c(1,4)) {
+boxplot(cmcdata[,i], ylab = colnames(cmcdata)[i], col = "grey")  
+}
+par(mfrow = c(1,1))
+```  
+- from the boxplot above we can see that there are few outliers in the n_children variable and the values ranges from 9 to 16. it is valid to consider those values as outliers because the total fertility rate in indonesia as at 1987 was 3.5 so we don't expect values too far from that number.  
+
+\begin{center}DATA PRE-PROCESSING\end{center}  
+
+#### remove the outlier values:  
+
+```{r, fig.keep='last', fig.height=4}
+outliers <- unique(boxplot(cmcdata$n_children)$out)
+
+outliers <- which(cmcdata$n_children %in% outliers)
+
+cmcdata <- cmcdata[-outliers,]
+
+boxplot(cmcdata$n_children, ylab = "number of children", col = "grey")
+
+```  
+- we can verify that the outliers have been removed from the observations  
+
+#### barplot representation of the categorical variables:  
+```{r}
+par(mfrow = c(2,4)) 
+
+for (i in c(2,3,5,6,7,8,9,10)) {
+  plot(cmcdata[,i], xlab = colnames(cmcdata)[i], col = "green")  
+}
+par(mfrow = c(1,1))
+```  
+-- The dependent variable appears to have an inbalanced class  
+
+\begin{center}HYPOTHESIS TESTING\end{center}
+#### Now we want to investigate the relationship between the dependent variable and the inependent variables to know which ones would be better predictors for the model:  
+### we can do a graphical representation of the variables to find relationships in them  
+
+```{r, fig.height=3}
+library(tidyverse)
+
+ggplot(cmcdata, aes(x = cm_used, y = w_age)) + geom_boxplot(fill = "green", col = "grey") +
+  coord_flip()
+```  
+
+```{r, fig.height=3}
+ggplot(cmcdata, aes(x = cm_used, y = n_children)) + geom_boxplot(fill = "green", col = "grey") +
+  coord_flip()
+```  
+- women with more children tend to opt for the long-term contraceptive method.  
+
+```{r, echo=FALSE}
+p1 <- ggplot(cmcdata, aes(x = w_education, fill = cm_used)) + geom_bar(position = "dodge")
+
+p2 <- ggplot(cmcdata, aes(x = h_education, fill = cm_used)) + geom_bar(position = "dodge")
+
+p3 <- ggplot(cmcdata, aes(x = w_religion, fill = cm_used)) + geom_bar(position = "dodge")
+
+p4 <- ggplot(cmcdata, aes(x = w_working, fill = cm_used)) + geom_bar(position = "dodge")
+
+p5 <- ggplot(cmcdata, aes(x = h_occuopation, fill = cm_used)) + geom_bar(position = "dodge")
+
+p6 <- ggplot(cmcdata, aes(x = S_l_Index, fill = cm_used)) + geom_bar(position = "dodge")
+
+p7 <- ggplot(cmcdata, aes(x = media, fill = cm_used)) + geom_bar(position = "dodge")
+cowplot::plot_grid(p1,p2,p3,p4,p5,p6,p7, ncol = 2)
+```  
+- the plots above does not give us enough evidence on whether to reject or accept the null hypothesis that there is no relationship between the dependent variables and the independent variable so we will verify with some statistical tests.  
+
+#### statistical hypothesis testing:  
+
+#### w_education and cm_used:  
+* h0 = no relationship between w_education and cm_used  
+* h1 = there exist a relationship between w_education and cm_used  
+* alpha = 0.05%   
+```{r}
+chisq.test(table(cmcdata$cm_used, cmcdata$w_education))
+```  
+-- with a p-value less than alpha we reject h0 and conclude that there exist a relationship  
+
+#### S_I_Index and cm_used:  
+* h0 = no relationship between S_I_Index and cm_used  
+* h1 = there exist a relationship between S_I_Index and cm_used  
+* alpha = 0.05%   
+```{r}
+chisq.test(table(cmcdata$cm_used, cmcdata$S_l_Index))
+```  
+-- with a p-value less than alpha we reject h0 and conclude that there exist a relationship  
+
+#### h_occupation and cm_used:  
+* h0 = no relationship between h_occupation and cm_used  
+* h1 = there exist a relationship between h_occupation and cm_used  
+* alpha = 0.05%   
+```{r}
+chisq.test(table(cmcdata$cm_used, cmcdata$h_occuopation))
+```  
+-- with a p-value of less than alpha we reject h0 and conclude that there exist a relationship  
+
+#### h_education and cm_used:  
+* h0 = no relationship between h_education and cm_used  
+* h1 = there exist a relationship between h_education and cm_used  
+* alpha = 0.05%   
+```{r}
+chisq.test(table(cmcdata$cm_used, cmcdata$h_education))
+```  
+-- with a p-value less than alpha we reject h0 and conclude that there exist a relationship  
+
+#### w_working and cm_used:
+* h0 = no relationship between w_working and cm_used  
+* h1 = there exist a relationship between w_working and cm_used  
+* alpha = 0.05%   
+```{r}
+chisq.test(table(cmcdata$cm_used, cmcdata$w_working))
+```  
+-- with a p-value greater than alpha we fail to reject h0 and conclude that there exist no relationship  
+
+#### w_religion and cm_used:  
+* h0 = no relationship between w_religion and cm_used  
+* h1 = there exist a relationship between w_religion and cm_used  
+* alpha = 0.05%   
+```{r}
+chisq.test(table(cmcdata$cm_used, cmcdata$w_religion))
+```  
+-- with a p-value less than alpha we reject h0 and conclude that there exist a relationship  
+
+#### media and cm_used:  
+* h0 = no relationship between media and cm_used  
+* h1 = there exist a relationship between media and cm_used  
+* alpha = 0.05%   
+```{r}
+chisq.test(table(cmcdata$cm_used, cmcdata$media))
+```  
+-- with a p-value less than alpha we reject h0 and conclude that there exist a relationship  
+
+
+#### we can also verify which variables will be better predictors in the model through a variable importance plot from the randomforest algorithm:  
+```{r,echo=FALSE}
+#  install.packages("randomForest")
+library(randomForest)
+varImpPlot(randomForest(cm_used~., data = cmcdata))
+```  
+- The plot above shows that w_working, media and w_religion have the least impact/relationship with the cm_used variable while w_age and n_children have the highest predictive power followed by education and s_l_index  
+
+\begin{center}MODELING:\end{center}  
+#### Building a classification model with linear discriminant analysis algorithm:  
+```{r}
+model <- MASS::lda(cm_used~., data = cmcdata)
+
+pred <- predict(model, cmcdata)
+
+```  
+#### Visualizing the result of the linear discriminant analysis:  
+  
+```{r, fig.height=5, fig.width=5}
+  #  install.packages("klaR")
+new_data <- data.frame(cm_used = cmcdata$cm_used, lda1 = pred$x[,1], lda2 = pred$x[,2])
+klaR::partimat(new_data$cm_used~ new_data$lda1 + new_data$lda2, method = "lda")
+
+```  
+
+# **RESULT AND DISCUSSION**  
+```{r, echo=FALSE}
+(tab <- table(predicted = pred$class, actual = cmcdata$cm_used))
+accu = sum(diag(tab))/sum(tab) * 100
+paste0("Accuracy: ", round(accu,2),"%")
+```  
+-- due to the inbalance nature of the response variable (contraceptive method used), the model was better at predicting the 1st class (No-use) than the other two classes (Long-term,Short-term)
+
+# **CONCLUSION**  
+The lda model has many misclassification we may need to try out more complex algorithm like  neural network to improve performance  
+
+# **APPENDICES**  
+# Data Source:  
+  + Origin: This dataset is a subset of the 1987 National Indonesia Contraceptive Prevalence Survey  
+  + Creator: Tjen-Sien Lim (limt '@' stat.wisc.edu)  
+  + Donor: Tjen-Sien Lim (limt '@' stat.wisc.edu)  
+  + Download: [link](https://archive.ics.uci.edu/ml/datasets/Contraceptive+Method+Choice?fbclid=IwAR1NrU1PfubiG9NPxkEKXvIqVlW7iqMfClpHb278M_Sh8C_d5BJFbvjPFvc)  
+
+# **REFERENCES**  
+
+**While carrying out this analysis i found the following websites very helpful:**    
+
+* <http://stackoverflow.com>  
+* <http://kaggle.com>  
+* <http://medium.com>  
+
